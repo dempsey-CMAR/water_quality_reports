@@ -16,8 +16,11 @@ knitr::opts_chunk$set(echo = FALSE, dpi = 600)
 ```
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+library(canadianmaps)
 library(dplyr)
 library(ggplot2)
+library(ggthemes)
 library(ggsflabel)
 library(ggspatial)
 library(glue)
@@ -25,12 +28,15 @@ library(here)
 library(knitr)
 library(lubridate)
 library(purrr)
+library(qaqcmar)
 library(sf)
 library(sensorstrings)
 library(stringr)
+library(strings)
 library(viridis)
 
 source(here("functions/subchunkify.R"))
+source(here("functions/import_map_params.R"))
 ```
 
  
@@ -38,51 +44,25 @@ source(here("functions/subchunkify.R"))
 
 county <- params$county
 
+vars <- c(    
+  "dissolved_oxygen_percent_saturation",
+  "dissolved_oxygen_uncorrected_mg_per_l",
+  "sensor_depth_measured_m",
+  "salinity_psu",
+  "temperature_degree_c"
+)
+
 # read all rds files for county and rbind together
-# - figure out which columns to keep and how to do that cleanly
 dat_raw <- suppressMessages(ss_import_data(county = county))
 
-dat <- dat_raw
-
-qc_flags <- colnames(dat_raw)[str_detect(colnames(dat_raw), "qc_flag")]
-
-# filter flags - could move this to function
-if ("qc_flag_dissolved_oxygen_percent_saturation" %in% qc_flags) {
-  dat <- dat %>% 
-    filter(qc_flag_dissolved_oxygen_percent_saturation %in% c(1, 2, NA))
-}
-
-if ("qc_flag_dissolved_oxygen_uncorrected_mg_per_l" %in% qc_flags) {
-  dat <- dat %>% 
-    filter(qc_flag_dissolved_oxygen_uncorrected_mg_per_l %in% c(1, 2, NA))
-}
-
-if ("qc_flag_sensor_depth_measured_m" %in% qc_flags) {
-  dat <- dat %>% 
-    filter(qc_flag_sensor_depth_measured_m %in% c(1, 2, 3, NA))
-}
-
-if ("qc_flag_salinity_psu" %in% qc_flags) {
-  dat <- dat %>% 
-    filter(qc_flag_salinity_psu %in% c(1, 2, 3, NA))
-}
-
-if ("qc_flag_temperature_degree_c" %in% qc_flags) {
-  dat <- dat %>% 
-    filter(qc_flag_temperature_degree_c %in% c(1, 2, 3, NA))
-}
-
-
-# dat <- dat_raw %>% 
-#   filter(
-#     qc_flag_dissolved_oxygen_percent_saturation %in% c(1, 2) |
-#       qc_flag_sensor_depth_measured_m %in% c(1, 2, 3) |
-#       qc_flag_salinity_psu %in% c(1, 2, 3) |
-#       qc_flag_temperature_degree_c %in% c(1, 2, 3)
-#     
-#   )
-
-
+dat <- dat_raw %>% 
+  qc_filter_summary_flags() %>% 
+  select(
+    waterbody, station, lease, latitude, longitude,
+    deployment_range, string_configuration,
+    sensor_type, sensor_serial_number, sensor_depth_at_low_tide_m, timestamp_utc,
+    any_of(vars)
+  )
 
 # unique waterbodies
 waterbodies <- sort(unique(dat$waterbody))
@@ -92,7 +72,7 @@ table_caption <- "Deployment details for"
 
 i = 0 # counter for waterbody
 k = 1 # counter for figure number
-text.size <- 3
+text_size <- 3
 crs <- 4326
 
 # stations that have DO below the default range of plot_variables_at_depth
@@ -127,31 +107,10 @@ custom_DO_lims <- c(
 #   
 # } else DO.mgL <- FALSE
 
+DO.mgL <- FALSE
 
 ```
 
-```{r, map-set-up}
-
-# import NS counties shapefile and remove NA row (should have 18 rows - 1 for each county)
-NS <- read_sf(here("shapefiles/Merged_Counties2.shp")) %>%
-  na.omit() %>% 
-  # add column with "1" for county of interest and "0" for other counties
-  mutate(
-    COL.COUNTY = if_else(County == county, 1, 0),
-    COL.COUNTY = ordered(factor(COL.COUNTY), levels = c(1, 0))
-  )
-
-# extract unique station locations and convert to sf object
-stations <- dat %>%
-  write_report_table(keep.waterbody = TRUE) %>%
-  select(Waterbody, Station, Latitude, Longitude) %>%
-  distinct(Station, .keep_all = TRUE) %>%
-  st_as_sf(
-    coords = c("Longitude", "Latitude"), remove = FALSE,
-    crs = crs, agr = "constant"
-  )
-
-```
 
 \newpage
 # Introduction
@@ -162,16 +121,39 @@ This document presents deployment details and summary figures of Water Quality d
 
 This document should be considered as a guide only, as data collection and retrieval are ongoing. The information may be revised pending ongoing data collection and analyses. 
 
-```{r, NS-map, message=FALSE, error=FALSE, fig.width=8}
+```{r, NS-map, message=FALSE, warning=FALSE, error=FALSE, fig.width=8}
+
+# NS county boundaries
+ns <- read_sf(here("data/merged_counties2/Merged_Counties2.shp")) %>% 
+  na.omit() %>% 
+   mutate(
+    col_county = if_else(County == county, 1, 0),
+    col_county = ordered(factor(col_county), levels = c(1, 0))
+  ) %>% 
+  st_transform(crs = crs) 
+
+bbox <- st_bbox(ns)
+
+nb_pei <- filter(PROV, PT == "NB"|PT=="PE") %>%
+  st_transform(crs = crs) %>% 
+  mutate(
+    col_county = 0, 
+    col_county = ordered(factor(col_county), levels = c(1, 0))
+  )
+
+can <- bind_rows(
+  ns %>% st_simplify(dTolerance = 1000), 
+  nb_pei
+) %>% 
+  st_crop(bbox) 
 
 ggplot() +
-  geom_sf(data = NS, col = NA, fill = NA) +
-  annotation_map_tile(type="cartolight", zoomin = 0) +
-  geom_sf(data = NS, col = "black", size = 0.05, aes(fill = COL.COUNTY)) +
-  scale_fill_manual(values = c("#1B9E77", NA)) +
-  fixed_plot_aspect(ratio = 2) +
+  geom_sf(data = can, aes(fill = col_county)) +
+  scale_fill_manual(values = c("#1B9E77", "grey90")) +
+  theme_map() +
+  coord_sf(expand = TRUE) +
   theme(
-    panel.border = element_rect(colour = "black", fill = NA, size = 1),
+    panel.border = element_rect(colour = "black", fill = NA, linewidth = 1),
     text = element_text(size = 12),
     axis.title = element_blank(),
     legend.position = "none"
@@ -188,34 +170,45 @@ k = k + 1
 
 ```{r, couny-map, message=FALSE, error=FALSE, warning=FALSE, fig.width=8}
 
-if(county == "Guysborough") text.size <- 2.5
+if(county == "Guysborough") text_size <- 2.5
 
 map_params <- import_map_params(county)
 
-station_map <- ggplot() +
-  geom_sf(data = map_params$dummy_points) +
-  annotation_map_tile(type = "cartolight", zoomin = map_params$zoomin) +
-  geom_sf(data = stations) +
+# extract unique station locations and convert to sf object
+stations_sf <- dat %>%
+  sensorstrings::ss_write_report_table(keep_waterbody = TRUE) %>%
+  select(Waterbody, Station, Latitude, Longitude) %>%
+  distinct(Station, .keep_all = TRUE) %>%
+  st_as_sf(
+    coords = c("Longitude", "Latitude"), remove = FALSE,
+    crs = crs, agr = "constant"
+  )
+
+county_sf <- ns %>% 
+  st_crop(map_params$dummy_points) 
+
+ggplot() +
+  geom_sf(data = county_sf) +
+  geom_sf(data = stations_sf) +
   geom_sf_label_repel(
-    data = stations, aes(label = Station),
+    data = stations_sf, aes(label = Station),
     label.size = NA,
-    fill = NA, size = text.size,
+    fill = NA, size = text_size,
     max.overlaps = 40
   ) +
+  coord_sf(expand = FALSE) +
   annotation_scale(location = "br") +
   annotation_north_arrow(
     location = "tl", which_north = "true",
     height = unit(1, "cm"),
     width = unit(1, "cm")
   ) +
-  fixed_plot_aspect(ratio = 2) +
+  theme_map() +
   theme(
     panel.border = element_rect(colour = "black", fill = NA, size = 1),
     text = element_text(size = 12),
     axis.title = element_blank()
   )
-
-station_map
 
 ```	
 <br>
@@ -234,77 +227,81 @@ CMAR collects temperature, dissolved oxygen, and intermittent salinity data usin
 
 ## Data Processing
 
-Some data were excluded from the dataset due to quality control processes.
+Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Each data point was assigned a flag value of “Fail”, “Suspect/Of Interest”, “Not Evaluated”, or “Pass” for each test. Observations that failed any test were excluded from the figures below. Dissolved oxygen observations flagged as “Suspect/Of Interest” were also excluded, because the flag indicates likely biofouling signals. The remaining observations are included in the figures.
+
+For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
+
 
 `r if(DO.mgL){"Dissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation."}`
 
-```{r, echo=FALSE, fig.align='center'}
+```{r, echo=FALSE, fig.width=8}
 
-knitr::include_graphics("sensor_string.png")
+knitr::include_graphics("sensor_string2.png")
 
 ```
 
 Figure `r k`: Example sensor string configuration (not to scale).
 
 \newpage
-# `r county` County Coastal Data
+# `r county` County Water Quality Data
 
-Coastal data is presented by waterbody. For each waterbody, there is a table of deployment details followed by figures showing the data at each station. The Mooring column indicates whether the string was attached to a fixed mooring (does not move vertically with the tide) or floating mooring (e.g., dock, equipment, buoy). A red line is included in temperature figures to indicate the -0.7 °C superchill threshold for salmonids (for figures where the temperature falls below this threshold). Note the different axis scales for each figure.
+Water Quality data is presented by waterbody. For each waterbody, there is a table of deployment details followed by figures showing the data at each station. **The Configuration column indicates whether the string was attached to a fixed mooring (does not move vertically with the tide) or floating mooring (e.g., dock, equipment, buoy). A red line is included in temperature figures to indicate the -0.7 °C superchill threshold for salmonids (for figures where the temperature falls below this threshold). Note the different axis scales for each figure.**
 
 
 ```{r, report-body, fig.width = 8.5, results = 'hide',  results ='asis', message=FALSE}
 
 for(i in seq_along(waterbodies)){
 
-  waterbody_name <- waterbodies[i]
-  waterbody_dat <- dat %>% filter(WATERBODY == waterbody_name)
+  waterbody_i <- waterbodies[i]
+  dat_i <- dat %>% filter(waterbody == waterbody_i)
 
-  stations <-  waterbody_dat %>% select(STATION) %>% distinct() %>% arrange(STATION)
-  stations <- stations$STATION 
-
-  cat('\n##', waterbody_name, '\n')
+  stations <- sort(unique(dat_i$station))
+  
+  cat('\n##', waterbody_i, '\n')
 
   cat('\n')
 
   # waterbody table
-  table <- write_report_table(waterbody_dat, keep.waterbody = FALSE)
+  table_i <- ss_write_report_table(dat_i, keep_waterbody = FALSE)
   
   print(
-    kable(table, align = "c",
-          caption = glue("Table {i}: {table.caption} {waterbody_name}.")
+    kable(table_i, align = "c",
+          caption = glue("Table {i}: {table_caption} {waterbody_i}.")
     )
   )
 
   # plot for each station
-  for(j in 1:length(stations)){
+  for(j in seq_along(stations)){
 
     k = k + 1
-    station.j <- stations[j] # station of interest
+    station_j <- stations[j] # station of interest
 
     # subset data to station of interest
-    station_dat <- waterbody_dat %>% 
-      filter(STATION == station.j) %>%
-      convert_depth_to_ordered_factor()
-    
-    # y-limts for DO
-    if(station.j %in% custom_DO_lims){
-      standard_lims = FALSE
-    } else standard_lims = TRUE
+    dat_j <- dat_i %>% 
+      filter(station == station_j) %>%
+    #  ss_pivot_longer() %>% 
+      ss_convert_depth_to_ordered_factor()
+
+    # # y-limts for DO
+    # if(station_j %in% custom_DO_lims){
+    #   standard_lims = FALSE
+    # } else standard_lims = TRUE
     
     # height of figure j
-    n.vars <- length(unique(station_dat$VARIABLE))
-    if(n.vars == 1) h = 2.5
-    if(n.vars == 2) h = 5
-    if(n.vars == 3) h = 7.5
-    if(n.vars == 4) h = 10
+    n_vars <- dat_j %>% ss_pivot_longer() %>% distinct(variable) %>% nrow()
+    # n_vars <- length(unique(dat_j$variable))
+    if(n_vars == 1) h = 2.5
+    if(n_vars == 2) h = 5
+    if(n_vars == 3) h = 7.5
+    if(n_vars == 4) h = 10
     
-    p <- plot_variables_at_depth(station_dat, standard.DO.ylims = standard_lims)
+    p <- ss_ggplot_variables(dat_j)
     
-    cat('\n###', station.j, '\n')
+    cat('\n###', station_j, '\n')
      
     subchunkify(p, fig_height = h, fig_width = 8.5)
     
-    cat(paste("Figure ", k, ": ", station.j, fig.caption,  sep = ""), '\n')
+    cat(paste("Figure ", k, ": ", station_j, fig_caption,  sep = ""), '\n')
     
     cat('\n')
   }
