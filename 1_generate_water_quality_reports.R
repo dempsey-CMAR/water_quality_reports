@@ -1,4 +1,4 @@
-# This script generates county reports for all counties specified in << county >> 
+# This script generates county reports for all counties specified in << county >>
 
 # SECTION 1: Read in document history and report files
 
@@ -13,11 +13,11 @@ library(here)
 library(readxl)
 
 doc_history <- read_excel(
-  "Y:/coastal_monitoring_program/tracking_sheets/water_quality_report_tracker.xlsx",
+  "R:/tracking_sheets/water_quality_report_tracker.xlsx",
   sheet = "Tracking"
 )
 
-report <- here("County_Report.Rmd")
+report <- here("1_water_quality_report.Rmd")
 
 
 # SECTION 1: SET UP ---------------------------------------------
@@ -27,13 +27,13 @@ county <-  "Annapolis"
 
 # SECTION 2: GENERATE REPORTS --------------------------------------------------------
 
-sapply(county, function(x) { 
-  
+sapply(county, function(x) {
+
   rmarkdown::render(
-    input = report, 
-    output_file = paste0("County_Report_", x, ".docx"),
+    input = report,
+    output_file = paste0(x, "_Water_Quality_Report.docx"),
     params = list(county = x, doc.hist = filter(doc_history, County == x)))
-  
+
 })
 
 

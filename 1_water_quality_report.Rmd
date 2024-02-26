@@ -19,6 +19,7 @@ knitr::opts_chunk$set(echo = FALSE, dpi = 600)
 
 library(canadianmaps)
 library(dplyr)
+library(flextable)
 library(ggplot2)
 library(ggthemes)
 library(ggsflabel)
@@ -27,6 +28,7 @@ library(glue)
 library(here)
 library(knitr)
 library(lubridate)
+library(officer)
 library(purrr)
 library(qaqcmar)
 library(sf)
@@ -89,25 +91,20 @@ custom_DO_lims <- c(
   "Tickle Island"
 ) 
 
-# # dissolved oxygen units considerations
-# if("mg/L" %in% unique(dat$UNITS)) {
-#   
+# dissolved oxygen units considerations
+# if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
+# 
 #   dat <- dat %>%
 #     mutate(
-#       VARIABLE = case_when(
-#         VARIABLE == "Dissolved Oxygen" & UNITS == "percent saturation" ~
-#           "Dissolved Oxygen (%)",
-#         VARIABLE == "Dissolved Oxygen" & UNITS == "mg/L" ~
-#           "Dissolved Oxygen (mg/L)",
-#         TRUE ~ VARIABLE
+#       
 #       )
-#     ) 
+#     )
 # 
-#   DO.mgL <- TRUE
-#   
-# } else DO.mgL <- FALSE
+#   DO_mgL <- TRUE
+# 
+# } else DO_mgL <- FALSE
 
-DO.mgL <- FALSE
+DO_mgL <- TRUE
 
 ```
 
@@ -225,15 +222,6 @@ k = k+1
 
 CMAR collects temperature, dissolved oxygen, and intermittent salinity data using autonomous sensors deployed on “sensor strings”. A sensor string typically consists of a line anchored to the sea floor by an acoustic release and suspended by a sub-surface buoy, with sensors attached at various depths below the surface (as measured at low tide; Figure 3). Alternatively, strings may be attached to surface moorings, including floating docks, buoys, and equipment. Sensor strings are typically deployed for several months, and data are measured every 1 minute to 1 hour. Sensors are retrieved for data offload by triggering the acoustic release when applicable, by directly removing from surface moorings, or occasionally by divers or dragging. Sensor strings may be re-deployed at the same location or moved to another area of interest depending on program objectives.
 
-## Data Processing
-
-Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Each data point was assigned a flag value of “Fail”, “Suspect/Of Interest”, “Not Evaluated”, or “Pass” for each test. Observations that failed any test were excluded from the figures below. Dissolved oxygen observations flagged as “Suspect/Of Interest” were also excluded, because the flag indicates likely biofouling signals. The remaining observations are included in the figures.
-
-For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
-
-
-`r if(DO.mgL){"Dissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation."}`
-
 ```{r, echo=FALSE, fig.width=8}
 
 knitr::include_graphics("sensor_string2.png")
@@ -241,6 +229,21 @@ knitr::include_graphics("sensor_string2.png")
 ```
 
 Figure `r k`: Example sensor string configuration (not to scale).
+
+## Quality Control
+
+Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following QARTOD guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” (**reference**). Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
+
+Observations flagged as “Suspect/Of Interest” were treated differently depending on the variable. Temperature and measured sensor depth observations are considered "Of Interest", and included in the figures below. In contrast, dissolved oxygen observations flagged as “Suspect/Of Interest” are typically indicative of biofouling. These observations are considered "Suspect", and excluded from the figures. Salinity observations flagged as "Suspect/Of Interest" were also considered "Suspect" and excluded.
+
+Some tests cannot be applied to certain observations, which were flagged as “Not Evaluated”. These observations were included in the figures. 
+
+For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
+
+
+`r if(DO_mgL){"## Dissolved Oxygen \nDissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation."}`
+
+
 
 \newpage
 # `r county` County Water Quality Data
@@ -263,13 +266,40 @@ for(i in seq_along(waterbodies)){
 
   # waterbody table
   table_i <- ss_write_report_table(dat_i, keep_waterbody = FALSE)
-  
+
   print(
     kable(table_i, align = "c",
           caption = glue("Table {i}: {table_caption} {waterbody_i}.")
     )
   )
-
+  
+  # report_table <- ss_write_report_table(dat_i, keep_waterbody = FALSE)
+  # 
+  # report_table <- report_table %>%
+  #   flextable::flextable() %>%
+  #   flextable::bold(bold = TRUE, part = "header")
+  # 
+  # 
+  # # set border style
+  # small_border <- officer::fp_border(color = "gray", width = 1)
+  # 
+  # # format table
+  # print(
+  #   report_table %>%
+  #     # borders
+  #     flextable::vline(border = small_border, part = "all") %>%
+  #     flextable::border_outer(part = "all", border = small_border) %>%
+  #     flextable::border_inner_h(part = "all", border = small_border) %>%
+  #     flextable::border_inner_v(part = "all", border = small_border) %>%
+  #     # font
+  #     flextable::font(part = "all", fontname = "ebrima") %>%
+  #     flextable::fontsize(size = 10, part = "all") %>%
+  #     # fit
+  #     flextable::autofit() %>%
+  #     flextable::fit_to_width(7.5)
+  # )
+  
+  
   # plot for each station
   for(j in seq_along(stations)){
 
@@ -309,7 +339,7 @@ for(i in seq_along(waterbodies)){
 
 ```
 
-`r if(DO.mgL){"# Reference \nGarcia, H. E., and Gordon, L. I. (1992). Oxygen solubility in seawater: better fitting equations. Limnol. Oceanogr. 37, 1307–1312. doi: 10.4319/lo.1992.37.6.1307"}`
+`r if(DO_mgL){"# Reference \nGarcia, H. E., and Gordon, L. I. (1992). Oxygen solubility in seawater: better fitting equations. Limnol. Oceanogr. 37, 1307–1312. doi: 10.4319/lo.1992.37.6.1307"}`
 
 \newpage
 # Document History
