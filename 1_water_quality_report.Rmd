@@ -1,7 +1,7 @@
 ---
 output: 
   word_document:
-    reference_docx: CMAR_report_template.docx
+    reference_docx: cmar_report_template_3.docx
     toc: true
     toc_depth: 3
 params: 
@@ -9,6 +9,7 @@ params:
   doc.hist: doc.hist
 editor_options: 
   chunk_output_type: console
+bibliography: water_qaulity_references.bib
 ---
 
 ```{r setup, include=FALSE}
@@ -18,8 +19,8 @@ knitr::opts_chunk$set(echo = FALSE, dpi = 600)
 ```{r, echo=FALSE, message=FALSE, warning=FALSE}
 
 library(canadianmaps)
+library(docalcs)
 library(dplyr)
-library(flextable)
 library(ggplot2)
 library(ggthemes)
 library(ggsflabel)
@@ -28,37 +29,58 @@ library(glue)
 library(here)
 library(knitr)
 library(lubridate)
-library(officer)
 library(purrr)
 library(qaqcmar)
+library(readr)
 library(sf)
 library(sensorstrings)
 library(stringr)
-library(strings)
+library(tidyr)
 library(viridis)
 
 source(here("functions/subchunkify.R"))
 source(here("functions/import_map_params.R"))
+
+county <- params$county
+
+filter_table <- read_csv(here("filter_not_evaluated_flags.csv"), 
+  col_types = "ccccnll",
+  show_col_types = FALSE) %>% 
+  separate(
+    deployment_range, 
+    into = c("start_date", "end_date"), sep = " to ",
+    remove = FALSE) %>% 
+  mutate(
+    qc_flag_value = ordered(qc_flag_value, levels = 1:4),
+    start_date = as_datetime(start_date),
+    end_date = as_datetime(end_date)
+  ) %>% 
+  filter(county == county) 
 ```
 
  
 ```{r, import-strings-data}
 
-county <- params$county
-
 vars <- c(    
   "dissolved_oxygen_percent_saturation",
   "dissolved_oxygen_uncorrected_mg_per_l",
-  "sensor_depth_measured_m",
   "salinity_psu",
+  "sensor_depth_measured_m",
   "temperature_degree_c"
 )
 
 # read all rds files for county and rbind together
 dat_raw <- suppressMessages(ss_import_data(county = county))
 
+if(!("lease" %in% colnames(dat_raw))) {
+  dat_raw <- mutate(dat_raw, lease = NA_character_)
+}
+
 dat <- dat_raw %>% 
+  qc_pivot_longer() %>% 
   qc_filter_summary_flags() %>% 
+  qc_filter_out_not_evaluated(filter_table) %>% 
+  qc_pivot_wider() %>% 
   select(
     waterbody, station, lease, latitude, longitude,
     deployment_range, string_configuration,
@@ -72,7 +94,7 @@ waterbodies <- sort(unique(dat$waterbody))
 fig_caption <- " water quality data."
 table_caption <- "Deployment details for"
 
-i = 0 # counter for waterbody
+i = 1 # counter for table
 k = 1 # counter for figure number
 text_size <- 3
 crs <- 4326
@@ -92,19 +114,18 @@ custom_DO_lims <- c(
 ) 
 
 # dissolved oxygen units considerations
-# if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
-# 
-#   dat <- dat %>%
-#     mutate(
-#       
-#       )
-#     )
-# 
-#   DO_mgL <- TRUE
-# 
-# } else DO_mgL <- FALSE
+if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
 
-DO_mgL <- TRUE
+  dat <- dat %>%
+    do_salinity_correction(sal = 30.6) %>% 
+    mutate(
+      dissolved_oxygen_mg_per_l = dissolved_oxygen_uncorrected_mg_per_l * F_s
+    ) %>% 
+    select(-c(dissolved_oxygen_uncorrected_mg_per_l, salinity_psu, F_s))
+
+  DO_mgL <- TRUE
+
+} else DO_mgL <- FALSE
 
 ```
 
@@ -165,7 +186,7 @@ k = k + 1
 ```
 
 
-```{r, couny-map, message=FALSE, error=FALSE, warning=FALSE, fig.width=8}
+```{r, county-map, message=FALSE, error=FALSE, warning=FALSE, fig.width=8}
 
 if(county == "Guysborough") text_size <- 2.5
 
@@ -220,35 +241,50 @@ k = k+1
 \newpage
 ## Data Collection 
 
-CMAR collects temperature, dissolved oxygen, and intermittent salinity data using autonomous sensors deployed on “sensor strings”. A sensor string typically consists of a line anchored to the sea floor by an acoustic release and suspended by a sub-surface buoy, with sensors attached at various depths below the surface (as measured at low tide; Figure 3). Alternatively, strings may be attached to surface moorings, including floating docks, buoys, and equipment. Sensor strings are typically deployed for several months, and data are measured every 1 minute to 1 hour. Sensors are retrieved for data offload by triggering the acoustic release when applicable, by directly removing from surface moorings, or occasionally by divers or dragging. Sensor strings may be re-deployed at the same location or moved to another area of interest depending on program objectives.
+CMAR collects temperature, dissolved oxygen, and salinity data using moorings referred to as "sensor strings". A typical sensor string configuration consists of a rope attached to the seafloor by an anchor and suspended by a sub-surface buoy, with sensors attached at various depths below the surface (Figure `r  k`). Most strings deployed since 2018 are attached to the anchor by an acoustic receiver with a release mechanism. Alternatively, strings may be attached to surface moorings, including floating docks, buoys, and equipment (Table `r i`). 
 
 ```{r, echo=FALSE, fig.width=8}
-
-knitr::include_graphics("sensor_string2.png")
-
+knitr::include_graphics("sensor_string.png")
 ```
 
 Figure `r k`: Example sensor string configuration (not to scale).
 
+Sensor strings are typically deployed for several months, and data are measured every 1 minute to 1 hour. Sensors are retrieved for data offload by triggering the acoustic release when applicable, by directly removing from surface moorings, or occasionally by divers or grappling methods (Table `r i`). Sensor strings may be re-deployed at the same location or moved to another area of interest depending on program objectives.
+
+\newpage
+
+Table `r i`: Description of sensor string configurations.
+
+| **Configuration** | **Description** |
+|---|---|
+|     Sub-surface buoy    |     Attached to sub-surface buoy. Typically has an acoustic release, but sometimes retrieved by diver or drag line. Does not float with the tide.    |
+|     Surface buoy    |     Attached to a surface buoy. Floats with the tide.    |
+|     Attached to gear    |     Typically attached to aquaculture gear (especially if associated with lease), but may be attached to another structure. Floats with the tide.  |
+|     Attached to fixed structure    |     Typically attached to a wharf, but may be attached to a bridge or pole. Does not float with the tide.  |
+|     Floating dock    |     Attached to a floating dock. Floats with the tide.    |
+|     Unknown    |     Configuration not indicated in deployment log.    |
+
+
+Stakeholder needs characteristics of the station location dictate the string design. Sensor strings are generally deployed 200 m to 1000 m from shore, in depths up to 75 m. Historically, strings were deployed with only temperature sensors, but in more recent years at least one dissolved oxygen sensor is included (typically at 5 m below the surface). At the request of industry, salinity sensors are also included at stations near proposed and existing shellfish aquaculture leases. Some of the sensors used to measure these variables also measure sensor depth. CMAR has processed and published this opportunistic data with the Water Quality datasets, and included it in the figures below.
+
 ## Quality Control
 
-Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following QARTOD guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” (**reference**). Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
+Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following QARTOD guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” [@RN25922]. Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
 
-Observations flagged as “Suspect/Of Interest” were treated differently depending on the variable. Temperature and measured sensor depth observations are considered "Of Interest", and included in the figures below. In contrast, dissolved oxygen observations flagged as “Suspect/Of Interest” are typically indicative of biofouling. These observations are considered "Suspect", and excluded from the figures. Salinity observations flagged as "Suspect/Of Interest" were also considered "Suspect" and excluded.
+**Observations flagged as “Suspect/Of Interest” were treated differently depending on the variable. Temperature and measured sensor depth observations are considered "Of Interest", and included in the figures below. In contrast, dissolved oxygen observations flagged as “Suspect/Of Interest” are typically indicative of biofouling. These observations are considered "Suspect", and excluded from the figures. Salinity observations flagged as "Suspect/Of Interest" were also considered "Suspect" and excluded.**
 
 Some tests cannot be applied to certain observations, which were flagged as “Not Evaluated”. These observations were included in the figures. 
 
+Quality Control tests were applied using the CMAR R package [qaqcmar](https://github.com/dempsey-CMAR/qaqcmar).
 For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
 
 
-`r if(DO_mgL){"## Dissolved Oxygen \nDissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation."}`
-
-
+`r if(DO_mgL){"## Dissolved Oxygen \nDissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor [@RN24366] with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation. The correction facor calculations are available in the CMAR R package [docalcs](https://github.com/dempsey-CMAR/docalcs)."}`
 
 \newpage
 # `r county` County Water Quality Data
 
-Water Quality data is presented by waterbody. For each waterbody, there is a table of deployment details followed by figures showing the data at each station. **The Configuration column indicates whether the string was attached to a fixed mooring (does not move vertically with the tide) or floating mooring (e.g., dock, equipment, buoy). A red line is included in temperature figures to indicate the -0.7 °C superchill threshold for salmonids (for figures where the temperature falls below this threshold). Note the different axis scales for each figure.**
+Water Quality data is presented by waterbody. For each waterbody, there is a table of deployment details followed by figures showing the data at each station. **A red line is included in temperature figures to indicate the -0.7 °C superchill threshold for salmonids (for figures where the temperature falls below this threshold). Note the different axis scales for each figure.**
 
 
 ```{r, report-body, fig.width = 8.5, results = 'hide',  results ='asis', message=FALSE}
@@ -269,36 +305,11 @@ for(i in seq_along(waterbodies)){
 
   print(
     kable(table_i, align = "c",
-          caption = glue("Table {i}: {table_caption} {waterbody_i}.")
+          caption = glue("Table {i+1}: {table_caption} {waterbody_i}.")
     )
   )
   
-  # report_table <- ss_write_report_table(dat_i, keep_waterbody = FALSE)
-  # 
-  # report_table <- report_table %>%
-  #   flextable::flextable() %>%
-  #   flextable::bold(bold = TRUE, part = "header")
-  # 
-  # 
-  # # set border style
-  # small_border <- officer::fp_border(color = "gray", width = 1)
-  # 
-  # # format table
-  # print(
-  #   report_table %>%
-  #     # borders
-  #     flextable::vline(border = small_border, part = "all") %>%
-  #     flextable::border_outer(part = "all", border = small_border) %>%
-  #     flextable::border_inner_h(part = "all", border = small_border) %>%
-  #     flextable::border_inner_v(part = "all", border = small_border) %>%
-  #     # font
-  #     flextable::font(part = "all", fontname = "ebrima") %>%
-  #     flextable::fontsize(size = 10, part = "all") %>%
-  #     # fit
-  #     flextable::autofit() %>%
-  #     flextable::fit_to_width(7.5)
-  # )
-  
+  cat('\n')
   
   # plot for each station
   for(j in seq_along(stations)){
@@ -309,7 +320,6 @@ for(i in seq_along(waterbodies)){
     # subset data to station of interest
     dat_j <- dat_i %>% 
       filter(station == station_j) %>%
-    #  ss_pivot_longer() %>% 
       ss_convert_depth_to_ordered_factor()
 
     # # y-limts for DO
@@ -319,7 +329,6 @@ for(i in seq_along(waterbodies)){
     
     # height of figure j
     n_vars <- dat_j %>% ss_pivot_longer() %>% distinct(variable) %>% nrow()
-    # n_vars <- length(unique(dat_j$variable))
     if(n_vars == 1) h = 2.5
     if(n_vars == 2) h = 5
     if(n_vars == 3) h = 7.5
@@ -339,8 +348,6 @@ for(i in seq_along(waterbodies)){
 
 ```
 
-`r if(DO_mgL){"# Reference \nGarcia, H. E., and Gordon, L. I. (1992). Oxygen solubility in seawater: better fitting equations. Limnol. Oceanogr. 37, 1307–1312. doi: 10.4319/lo.1992.37.6.1307"}`
-
 \newpage
 # Document History
 
@@ -354,4 +361,7 @@ params$doc.hist %>%
   )
 
 ```
+<br>
+
+# References
 
