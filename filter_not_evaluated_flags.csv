@@ -1,0 +1,6 @@
+﻿county,station,deployment_range,variable,qc_flag_value,filter_out_flag,filter_from_start
+Annapolis,5005,2021-May-14 to 2021-Jun-18,salinity_psu,2,TRUE,TRUE
+Annapolis,Cornwallis,2020-Nov-22 to 2021-Jun-16,dissolved_oxygen_percent_saturation,2,TRUE,FALSE
+Annapolis,Lobster Ledge,2020-Nov-22 to 2021-Jun-16,dissolved_oxygen_percent_saturation,2,TRUE,FALSE
+Annapolis,Lobster Ledge,2021-Jun-16 to 2022-Jun-20,dissolved_oxygen_percent_saturation,2,TRUE,FALSE
+Annapolis,Lobster Ledge,2022-Jun-20 to 2023-May-24,dissolved_oxygen_percent_saturation,2,TRUE,FALSE
