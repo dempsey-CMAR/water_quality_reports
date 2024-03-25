@@ -43,19 +43,19 @@ source(here("functions/import_map_params.R"))
 
 county <- params$county
 
-filter_table <- read_csv(here("filter_not_evaluated_flags.csv"), 
-  col_types = "ccccnll",
-  show_col_types = FALSE) %>% 
-  separate(
-    deployment_range, 
-    into = c("start_date", "end_date"), sep = " to ",
-    remove = FALSE) %>% 
-  mutate(
-    qc_flag_value = ordered(qc_flag_value, levels = 1:4),
-    start_date = as_datetime(start_date),
-    end_date = as_datetime(end_date)
-  ) %>% 
-  filter(county == county) 
+# filter_table <- read_csv(here("filter_not_evaluated_flags.csv"), 
+#   col_types = "ccccnll",
+#   show_col_types = FALSE) %>% 
+#   separate(
+#     deployment_range, 
+#     into = c("start_date", "end_date"), sep = " to ",
+#     remove = FALSE) %>% 
+#   mutate(
+#     qc_flag_value = ordered(qc_flag_value, levels = 1:4),
+#     start_date = as_datetime(start_date),
+#     end_date = as_datetime(end_date)
+#   ) %>% 
+#   filter(county == county) 
 ```
 
  
@@ -76,16 +76,30 @@ if(!("lease" %in% colnames(dat_raw))) {
   dat_raw <- mutate(dat_raw, lease = NA_character_)
 }
 
+# if(county == "Inverness") {
+#   keep_do_percent_sat <- c(1, 2, 3, NA)
+# } else {
+#    keep_do_percent_sat <- c(1, 2, NA)
+# }
+
+# keep monks head salinity observations flagged 3
+if(county == "Antigonish") {
+  keep_salinity <- c(1, 2, 3, NA)
+} else {
+  keep_salinity <- c(1, 2, NA)
+}
+
 dat <- dat_raw %>% 
   qc_pivot_longer() %>% 
-  qc_filter_summary_flags() %>% 
-  qc_filter_out_not_evaluated(filter_table) %>% 
+  qc_filter_summary_flags(keep_salinity_psu = keep_salinity) %>% 
+  filter(qc_flag_value != 2) %>% 
   qc_pivot_wider() %>% 
   select(
     waterbody, station, lease, latitude, longitude,
     deployment_range, string_configuration,
     sensor_type, sensor_serial_number, sensor_depth_at_low_tide_m, timestamp_utc,
-    any_of(vars)
+    any_of(vars),
+    contains("flag")
   )
 
 # unique waterbodies
@@ -113,18 +127,54 @@ custom_DO_lims <- c(
   "Tickle Island"
 ) 
 
-# dissolved oxygen units considerations
-if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
+# no_do <- c(
+#   "Antigonish 2", 
+#   "Hourglass Lake", 
+#   "Sissiboo", 
+#   "McNabs Point 2", 
+#   "Tracadie 3",
+#   "Piper Lake"
+# )
 
-  dat <- dat %>%
+keep_sus_do_cap <- c(
+  "0814x East",
+  "0814x West",
+  "Aberdeen",
+  "Deep Basin",
+  "Hourglass Lake",
+  "Piper Lake",
+  "Sissiboo",
+  "Tickle Island 1" # 60 m DO 
+)
+# Tickle Island 1: depth data - removed rolling_sd flags of 3
+
+# dissolved oxygen units considerations
+# move this to a function and source
+if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
+  
+  dat_other <- dat %>% 
+    filter(is.na(dissolved_oxygen_uncorrected_mg_per_l))
+  
+  dat_do <- dat %>% 
+    filter(!is.na(dissolved_oxygen_uncorrected_mg_per_l))
+  
+  if("salinity_psu" %in% colnames(dat_do)) {
+    
+    if(is.na(unique((dat_do$salinity_psu)))) {
+      dat_do <- dat_do %>% select(-salinity_psu)
+    } else message("use salinity column in dat for Fs")
+  }
+  
+  dat <- dat_do %>%
     do_salinity_correction(sal = 30.6) %>% 
     mutate(
       dissolved_oxygen_mg_per_l = dissolved_oxygen_uncorrected_mg_per_l * F_s
     ) %>% 
-    select(-c(dissolved_oxygen_uncorrected_mg_per_l, salinity_psu, F_s))
-
+    select(-c(dissolved_oxygen_uncorrected_mg_per_l, salinity_psu, F_s)) %>% 
+    bind_rows(dat_other)
+  
   DO_mgL <- TRUE
-
+  
 } else DO_mgL <- FALSE
 
 ```
@@ -259,25 +309,29 @@ Table `r i`: Description of sensor string configurations.
 |---|---|
 |     Sub-surface buoy    |     Attached to sub-surface buoy. Typically has an acoustic release, but sometimes retrieved by diver or drag line. Does not float with the tide.    |
 |     Surface buoy    |     Attached to a surface buoy. Floats with the tide.    |
-|     Attached to gear    |     Typically attached to aquaculture gear (especially if associated with lease), but may be attached to another structure. Floats with the tide.  |
+|     Attached to gear    |     Typically attached to aquaculture gear[^1], but may be attached to another structure. Floats with the tide.  |
 |     Attached to fixed structure    |     Typically attached to a wharf, but may be attached to a bridge or pole. Does not float with the tide.  |
 |     Floating dock    |     Attached to a floating dock. Floats with the tide.    |
 |     Unknown    |     Configuration not indicated in deployment log.    |
 
+[^1]: Some aquaculture gear maybe be sunk to the bottom during winter or extreme weather conditions like hurricanes, and so the sensor depth may change during the deployment. This change would likely be flagged by quality control processes, but it is recommended that data from these deployments are reviewed with caution.
 
-Stakeholder needs characteristics of the station location dictate the string design. Sensor strings are generally deployed 200 m to 1000 m from shore, in depths up to 75 m. Historically, strings were deployed with only temperature sensors, but in more recent years at least one dissolved oxygen sensor is included (typically at 5 m below the surface). At the request of industry, salinity sensors are also included at stations near proposed and existing shellfish aquaculture leases. Some of the sensors used to measure these variables also measure sensor depth. CMAR has processed and published this opportunistic data with the Water Quality datasets, and included it in the figures below.
+Stakeholder needs and characteristics of the station dictate the string design, including anchor weight, number and type of sensors, and configuration (Table `r i`). Sensor strings are generally deployed 200 m to 1000 m from shore, in depths up to 75 m. Historically, strings were deployed with only temperature sensors, but in more recent years at least one dissolved oxygen sensor is included (typically at 5 m below the surface). At the request of industry, salinity sensors are also included at stations near proposed and existing shellfish aquaculture leases. Some of the sensors used to measure these variables also measure sensor depth. CMAR has processed and published this opportunistic depth data with the Water Quality datasets, and included it in the figures below.
 
 ## Quality Control
 
-Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following QARTOD guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” [@RN25922]. Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
+**sensor drift?; Table 2 from DG Website??**
 
-**Observations flagged as “Suspect/Of Interest” were treated differently depending on the variable. Temperature and measured sensor depth observations are considered "Of Interest", and included in the figures below. In contrast, dissolved oxygen observations flagged as “Suspect/Of Interest” are typically indicative of biofouling. These observations are considered "Suspect", and excluded from the figures. Salinity observations flagged as "Suspect/Of Interest" were also considered "Suspect" and excluded.**
+Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following QARTOD guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” [@RN25922]. These automated flags were reviewed by human experts, and modified where necessary (e.g., upgrading “Suspect/Of Interest” flags to "Fail" if there were known issues with the deployment). Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
 
-Some tests cannot be applied to certain observations, which were flagged as “Not Evaluated”. These observations were included in the figures. 
+Observations flagged as “Suspect/Of Interest” were treated differently depending on the variable. “Suspect/Of Interest” dissolved oxygen observations were typically indicative of biofouling, and were excluded from the figures. Salinity observations were also considered "Suspect" and excluded. Temperature and measured sensor depth observations flagged as “Suspect/Of Interest” were reviewed by human experts. Most of these observations were considered "Of Interest" and are shown in the figures below. Observations that were clearly unreliable were flagged as "Fail" and not included in the report.
+
+Some tests cannot be applied to certain observations, which were flagged as “Not Evaluated”. These observations were not included in the figures. 
+
+Removing flagged observations can result in patchy time series, especially for dissolved oxygen. Data gaps can also be caused by battery failure, delays between retrieval and re-deployment, and accidental or intentional interference with equipment.
 
 Quality Control tests were applied using the CMAR R package [qaqcmar](https://github.com/dempsey-CMAR/qaqcmar).
 For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
-
 
 `r if(DO_mgL){"## Dissolved Oxygen \nDissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor [@RN24366] with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation. The correction facor calculations are available in the CMAR R package [docalcs](https://github.com/dempsey-CMAR/docalcs)."}`
 
@@ -321,14 +375,56 @@ for(i in seq_along(waterbodies)){
     dat_j <- dat_i %>% 
       filter(station == station_j) %>%
       ss_convert_depth_to_ordered_factor()
-
+    
+    # if(station_j %in% no_do) {
+    #   dat_j <- dat_j %>% 
+    #     select(-contains("dissolved_oxygen"))
+    # }
+    
+    # filter out salinity obs flagged 3 from all stations except Monks Head
+    if(county == "Antigonish" & station_j != "Monks Head") {
+      dat_j <- dat_j %>% 
+        qc_pivot_longer(qc_tests = "qc") %>% 
+        qc_filter_summary_flags() %>% 
+        qc_pivot_wider()
+    }
+    
+    # filter out all DO values flagged 3 at 5 m
+    # filter out DO values flagged 3 for rolling sd at 60 m
+    # keep DO values flagged 3 for climatology at 60 m
+    # filter out measured sensor depth rolling sd at 5 m
+    if(county == "Guysborough" & station_j == "Tickle Island 1") {
+      dat_j <- dat_j %>% 
+        qc_pivot_longer(qc_tests = c("qc", "rolling_sd")) %>% 
+        filter(
+          !(variable == "sensor_depth_measured_m" &
+              sensor_depth_at_low_tide_m == 5 &
+              rolling_sd_flag_value == 3),
+          
+          !(variable == "dissolved_oxygen_percent_saturation" &
+              sensor_depth_at_low_tide_m == 5 &
+              qc_flag_value == 3),
+          
+          !(variable == "dissolved_oxygen_percent_saturation" &
+              sensor_depth_at_low_tide_m == 60 &
+              rolling_sd_flag_value == 3)
+        ) %>% 
+        qc_pivot_wider()
+    }
+    
+    dat_j <- dat_j %>% select(-contains("flag"))
+    
     # # y-limts for DO
     # if(station_j %in% custom_DO_lims){
     #   standard_lims = FALSE
     # } else standard_lims = TRUE
     
     # height of figure j
-    n_vars <- dat_j %>% ss_pivot_longer() %>% distinct(variable) %>% nrow()
+    n_vars <- dat_j %>% 
+      ss_pivot_longer() %>% 
+      distinct(variable) %>% 
+      nrow()
+    
     if(n_vars == 1) h = 2.5
     if(n_vars == 2) h = 5
     if(n_vars == 3) h = 7.5
