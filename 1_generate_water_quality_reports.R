@@ -22,8 +22,7 @@ report <- here("1_water_quality_report.Rmd")
 
 # SECTION 1: SET UP ---------------------------------------------
 
-county <-  "Annapolis"
-
+county <- "Lunenburg"
 
 # SECTION 2: GENERATE REPORTS --------------------------------------------------------
 
