@@ -8,7 +8,7 @@ import_map_params <- function(county, crs = 4326){
   }
 
   if(county == "Antigonish"){
-    dummy_points <- data.frame(Long = c(-62.3, -61.25), Lat = c(45.5, 45.9)) %>%
+    dummy_points <- data.frame(Long = c(-62.1, -61.4), Lat = c(45.55, 45.9)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
@@ -32,8 +32,9 @@ import_map_params <- function(county, crs = 4326){
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
+  # these will need to be updated to show Careys Point
   if(county == "Halifax"){
-    dummy_points <- data.frame(Long = c(-64.24, -61.9), Lat = c(44.3, 45.2)) %>%
+    dummy_points <- data.frame(Long = c(-64.1, -62.2), Lat = c(44.1, 45.15)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
@@ -48,17 +49,17 @@ import_map_params <- function(county, crs = 4326){
   }
 
   if(county == "Pictou"){
-    dummy_points <- data.frame(Long = c(-63.2, -61.7), Lat = c(45.3, 46.7)) %>%
+    dummy_points <- data.frame(Long = c(-62.92, -62.2), Lat = c(45.5, 45.9)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
   if(county == "Queens"){
-    dummy_points <- data.frame(Long = c(-65.40, -64), Lat = c(43.79, 44.3)) %>%
+    dummy_points <- data.frame(Long = c(-65.40, -64), Lat = c(43.77, 44.3)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
   if(county == "Richmond"){
-    dummy_points <- data.frame(Long = c(-61.7, -60.2), Lat = c(45.3, 45.8)) %>%
+    dummy_points <- data.frame(Long = c(-61.5, -60.4), Lat = c(45.35, 45.75)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
@@ -73,7 +74,7 @@ import_map_params <- function(county, crs = 4326){
   }
 
   if(county == "Yarmouth"){
-    dummy_points <- data.frame(Long = c(-66.5, -65.4), Lat = c(43.6, 43.9)) %>%
+    dummy_points <- data.frame(Long = c(-66.5, -65.4), Lat = c(43.6, 44)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
