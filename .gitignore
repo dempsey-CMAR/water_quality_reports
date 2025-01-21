@@ -4,5 +4,8 @@
 .Ruserdata
 
 *_Report.docx
+*report_elements/
+archive/
+drafts/
 
 rosm.cache/
