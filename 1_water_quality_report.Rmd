@@ -33,6 +33,7 @@ library(qaqcmar)
 library(readr)
 library(sf)
 library(sensorstrings)
+library(stringr)
 library(tidyr)
 
 source(here("functions/subchunkify.R"))
@@ -84,7 +85,6 @@ text_size <- 3.5
 crs <- 4326
 
 # dissolved oxygen units considerations
-# move this to a function and source
 if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
   dat <- correct_do_data(dat)
   DO_mgL <- TRUE
@@ -96,10 +96,9 @@ if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
 \newpage
 # Introduction
 
-The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through their Coastal Monitoring Program. 
-The Nova Scotia Department of Fisheries and Aquaculture started this program in the early 1990s to inform aquaculture site selection and management. CMAR assumed responsibility for the program in 2019, and has since expanded its scope and mandate. For more information on CMAR and the Coastal Monitoring Program, visit the [CMAR website](https://cmar.ca/). 
+The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through the Coastal Monitoring Program. The Nova Scotia Department of Fisheries and Aquaculture started this program in 2015 to inform aquaculture site selection and management. CMAR assumed responsibility for the program in 2019 and has since expanded its scope and mandate. For more information on CMAR and the Coastal Monitoring Program, visit the [CMAR website](https://cmar.ca/). 
 
-This document presents deployment details and summary figures of Water Quality data collected for **`r county` County** (Figure `r k` and Figure `r k+1`). The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?tags=coastal+monitoring+program) and from the ERDAPP server through the [Canadian Integrated Ocean Observing platform](https://catalogue.cioosatlantic.ca/dataset?q=cmar). 
+This document presents deployment details and summary figures of Water Quality data collected in **`r county` County** (Figure `r k` and Figure `r k+1`). The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=coastal+monitoring+program&sortBy=relevance&limitTo=datasets&tags=water+quality) and from the ERDAPP server through the [Canadian Integrated Ocean Observing System](https://catalogue.cioosatlantic.ca/dataset?q=cmar). 
 
 This document should be considered as a guide only, since data collection and retrieval are ongoing. The information may be revised pending ongoing data collection and analyses. 
 
@@ -143,7 +142,7 @@ ggplot() +
 
 ```
 
-Figure `r k`: `r county` County (green).
+**Figure `r k`:** `r county` County (green).
 
 ```{r,  message=FALSE, error=FALSE}
 k = k + 1
@@ -159,6 +158,14 @@ dummy_coords <- import_map_params(county)
 # extract unique station locations and convert to sf object
 stations_sf <- dat %>%
   sensorstrings::ss_write_report_table(keep_waterbody = TRUE) %>%
+  mutate(
+    Station = case_when(
+      str_detect(Station, "Roy Island") ~ "Roy Island 1, 2, 3", 
+      str_detect(Station, "Antigonish") ~ "Antigonish 1, 2, 3", 
+      str_detect(Station, "Tracadie") ~ "Tracadie 1, 2, 3",
+      str_detect(Station, "McNabs Point") ~ "McNabs Point 1, 2, 3",
+      TRUE ~ Station)
+  ) %>% 
   select(Waterbody, Station, Latitude, Longitude) %>%
   distinct(Station, .keep_all = TRUE) %>%
   st_as_sf(
@@ -172,9 +179,15 @@ county_sf <- ns %>%
 # extend xlims because shapefile extents make the figure crowded
 if(county == "Digby") {
   x_lims <-  c(-66.7, -65.4)
-} else if(county == "Yarmouth") {
-   x_lims <-  c(-66.5, -65.4)
 } else x_lims <- NULL
+
+if(county == "Halifax") {
+  force_fact <- 40
+} else if (county == "Richmond") {
+  force_fact <- 23
+} else if (county == "Inverness") {
+  force_fact <- 27
+} else force_fact <- 50
 
 
 ggplot() +
@@ -182,8 +195,7 @@ ggplot() +
   geom_sf(data = stations_sf) +
   ggsflabel::geom_sf_text_repel(
     data = stations_sf, aes(label = Station), 
-    #fill = NA, label.size = NA,
-    force = 50, max.overlaps = 40,  seed = 12,
+    force = force_fact, max.overlaps = 40,  seed = 12,
     size = text_size, color = "black", bg.color = "white"
   ) +
   coord_sf(expand = FALSE, xlim = x_lims) +
@@ -200,8 +212,7 @@ ggplot() +
 ```	
 <br>
 
-
-Figure `r k`: Sampling stations in `r county` County.
+**Figure `r k`:** Sampling stations in `r county` County.
 
 ```{r}
 k = k+1
@@ -210,19 +221,22 @@ k = k+1
 \newpage
 ## Data Collection 
 
-CMAR collects temperature, dissolved oxygen, and salinity data using moorings referred to as "sensor strings". A typical sensor string configuration consists of a rope attached to the seafloor by an anchor and suspended by a sub-surface buoy, with sensors attached at various depths (Figure `r  k`). Alternatively, sensor strings may be attached to surface moorings, including floating docks, buoys, and equipment (Table `r i`). 
+CMAR collects temperature, dissolved oxygen, and salinity data using moorings referred to as "sensor strings". A typical sensor string configuration consists of a rope attached to the seafloor by an anchor and suspended by a sub-surface buoy, with sensors attached at various depths (Figure `r  k`). Alternatively, sensors may be attached to floating docks, surface buoys, equipment, or fixed structures (Table `r i`). 
 
 ```{r, echo=FALSE, fig.width=8}
 knitr::include_graphics("sensor_string.png")
 ```
 
-Figure `r k`: Example sensor string configuration (not to scale).
+**Figure `r k`:** Example sensor string configuration (not to scale).
 
-Sensor strings are typically deployed at a station for several months to a year, and data are logged every 1 minute to 1 hour. Sensors must be retrieved to offload the data. The retrieval method depends on the sensor string configuration, and may include triggering an acoustic release, directly removing sensors from surface moorings, or occasionally employing divers or grappling methods (Table `r i`). Sensor strings may be redeployed at the same station or moved to another area of interest depending on program objectives.
+Sensor strings are typically deployed at a station for several months to a year, and data are logged every 1 minute to 1 hour. Sensors must be retrieved to offload the data. The retrieval method depends on the sensor configuration, and may include triggering an acoustic release, directly removing sensors from surface moorings, or employing divers or grappling methods (Table `r i`).
+
+To build long term data series, key stations around the province have multiple consecutive deployments. At these stations, new sensors are deployed during the same field trip that the previous sensors are retrieved. Other stations may have fewer deployments due to reduced interest in the area or operational constraints. New stations are added based on interest-holder requests or to fill spatial gaps.
+
 
 \newpage
 
-Table `r i`: Description of sensor string configurations.
+**Table `r i`:** Description of sensor string configurations.
 
 | **Configuration** | **Description** |
 |---|---|
@@ -233,24 +247,24 @@ Table `r i`: Description of sensor string configurations.
 |     Floating dock    |     Attached to a floating dock. Floats with the tide.    |
 |     Unknown    |     Configuration not indicated in historical deployment log.    |
 
-[^1]: Some aquaculture gear may be be sunk to the bottom during winter or extreme weather conditions like hurricanes, and so the sensor depth may change during the deployment. This change would likely be flagged by quality control processes, but it is recommended that users critically review data from these deployments.
+[^1]: Some aquaculture gear may be sunk to the bottom during winter or extreme weather conditions like hurricanes, and so the sensor depth may change during the deployment. This change would likely be flagged by quality control processes, but it is recommended that users critically review data from these deployments.
 
-Stakeholder needs and characteristics of the station dictate the string design, including anchor weight, number and type of sensors, and configuration (Table `r i`). Sensor strings are generally deployed 200 m to 1000 m from shore, in depths up to 75 m. Historically, strings were deployed with only temperature sensors, but more recently a dissolved oxygen sensor is often attached 5 m below the surface. At the request of industry, salinity sensors are also included at stations near proposed and existing shellfish aquaculture leases. Some of the sensors used to measure these variables also measure sensor depth. CMAR has processed and published this opportunistic depth data with the Water Quality datasets, and measured sensor depth is included in the figures below.
+Interest-holder needs and characteristics of the station dictate the string design, including anchor weight, number and type of sensors, and configuration (Table `r i`). Sensor strings are generally deployed 200 m to 1000 m from shore, in depths up to 75 m. Historically, strings were deployed with only temperature sensors, but more recently a dissolved oxygen sensor is often attached 5 m below the surface. At the request of industry, salinity sensors are also included at stations near proposed and existing shellfish aquaculture leases. Some of the sensors used to measure these variables also measure sensor depth. CMAR has processed and published this opportunistic depth data with the Water Quality datasets, and measured sensor depth is included in the figures below.
 
 ## Quality Control
 
 Automated Quality Control tests were applied to the data to identify outlying and unexpected observations. Following Quality Assurance/Quality Control of Real-Time Oceanographic Data (QARTOD) guidance, each data point was assigned a flag of “Pass”, “Fail”, “Suspect/Of Interest”, or “Not Evaluated” [@RN25922]. These automated flags were reviewed by human experts, and modified where necessary (e.g., upgrading “Suspect/Of Interest” flags to "Fail" if there were known issues with the deployment). Observations flagged as “Pass” passed all tests and were included in the figures below. Observations that failed any test were considered poor quality data and excluded from the figures.
 
-Observations flagged as “Suspect/Of Interest” were reviewed by human experts. “Suspect/Of Interest” dissolved oxygen observations were typically indicative of biofouling, and were excluded from the figures unless otherwise noted. “Suspect/Of Interest” salinity observations were also usually considered "Suspect" and excluded unless otherwise noted. Most of the temperature and measured depth observations were considered "Of Interest" and are shown in the figures below. Temperature and depth observations that were clearly unreliable were flagged as "Fail" and were not included in the report.
+Observations flagged as “Suspect/Of Interest” were reviewed by human experts. “Suspect/Of Interest” dissolved oxygen observations may be indicative of biofouling and were excluded from the figures unless otherwise noted. “Suspect/Of Interest” salinity observations were usually considered "Suspect" and excluded unless otherwise noted. Most of the temperature and measured depth observations were considered "Of Interest" and are shown in the figures below. 
 
 Some tests cannot be applied to certain observations, which were flagged as “Not Evaluated”. These data points were not included in the figures. 
 
+Removing flagged observations can result in patchy time series, especially for dissolved oxygen data. The full `r county` County Water Quality Data, including Quality Control flags, can be downloaded from the [Open Data Portal](https://data.novascotia.ca/browse?q=coastal+monitoring+program&sortBy=relevance&limitTo=datasets&tags=water+quality) or the
+[Canadian Integrated Ocean Observing System](https://catalogue.cioosatlantic.ca/dataset?q=cmar). Data gaps can also be caused by battery failure, delays between retrieval and re-deployment, and accidental or intentional interference with equipment.
+
 Note that some sensors (dissolved oxygen and salinity) may drift over time. The existing Quality Control tests do not explicitly detect sensor drift, and users should review all data prior to use.
 
-Removing flagged observations can result in patchy time series, especially for dissolved oxygen data. Data gaps can also be caused by battery failure, delays between retrieval and re-deployment at a station, and accidental or intentional interference with equipment.
-
 For more technical details about the Quality Control tests, visit the CMAR [Data Governance website](https://dempsey-cmar.github.io/cmp-data-governance/pages/cmp_about.html).
-
 
 `r if(DO_mgL){"## Dissolved Oxygen \nDissolved oxygen was measured in units of percent saturation or mg/L, depending on the deployment. Measurements in mg/L were corrected for salinity using the Garcia-Gordon (1992) salinity correction factor [@RN24366] with a salinity value of 30.6 practical salinity units (based on available data for the region). This correction factor is not required for values recorded in percent saturation. The correction factor calculations are available in the CMAR R package [docalcs](https://github.com/dempsey-CMAR/docalcs)."}`
 
@@ -275,9 +289,10 @@ for(i in seq_along(waterbodies)){
   # waterbody table
   table_i <- ss_write_report_table(dat_i, keep_waterbody = FALSE)
 
+  i_table <- i + 1
   print(
     kable(table_i, align = "c",
-          caption = glue("Table {i+1}: {table_caption} {waterbody_i}.")
+          caption = glue("**Table {i_table}:** {table_caption} {waterbody_i}.")
     )
   )
   
@@ -327,7 +342,8 @@ for(i in seq_along(waterbodies)){
     p <- ss_plot_variables(
       dat_j,
       standard_do_ylims = ylims_do,
-      standard_sal_ylims = ylims_sal
+      standard_sal_ylims = ylims_sal,
+      yaxis_newline = FALSE
     )
     
     cat('\n###', station_j, '\n')
@@ -335,7 +351,7 @@ for(i in seq_along(waterbodies)){
     subchunkify(p, fig_height = h, fig_width = 8.5)
     
     # figure caption    
-    fig_caption_j <-  glue("Figure {k}: {station_j}{fig_caption}")
+    fig_caption_j <-  glue("**Figure {k}:** {station_j}{fig_caption}")
     
     if(station_j %in% c(keep_sus_do)) {
       fig_caption_j <-glue_do_fig_caption(fig_caption_j, station_j)
@@ -356,12 +372,12 @@ for(i in seq_along(waterbodies)){
 \newpage
 #	Data Acknowledgement 
 
-CMAR aims to prioritize data collection and processing efforts that best serve coastal stakeholders. If you use this Coastal Monitoring Program Water Quality data in a project or for decision making, please complete our [anonymous questionnaire](https://docs.google.com/forms/d/1RmHN1vDaM0dXqKFKy8V-traIoubdw1pqMDKVtPmWDHc/edit) with your feedback. Please cite the report and/or datasets used.
+CMAR aims to prioritize data collection and processing efforts that best serve coastal interest holders. If you use this Coastal Monitoring Program Water Quality data in a project or for decision making, please complete our [anonymous questionnaire](https://docs.google.com/forms/d/1RmHN1vDaM0dXqKFKy8V-traIoubdw1pqMDKVtPmWDHc/edit) with your feedback. Please cite the report and/or datasets used.
 
 # Document History
 
 ```{r}
-i = i +1
+i <- i_table +1
 
 params$doc.hist %>% 
   select(-c(County, Notes)) %>% 
