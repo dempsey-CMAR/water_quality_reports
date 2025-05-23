@@ -74,6 +74,10 @@ calc_fig_height <- function(dat, h1) {
   if(n_vars == 4) h = 4 * h1
   if(n_vars > 4) h = 5 * h1
 
+  # if(isTRUE(fit_page)) {
+  #   if(n_vars == 4) h = 8
+  # }
+
   h
 }
 

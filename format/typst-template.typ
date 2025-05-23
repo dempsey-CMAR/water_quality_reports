@@ -51,7 +51,7 @@
   show table: set text(size: 9pt)
   show table: set par(justify: false)
   show table.cell.where(y: 0): set text(weight: "bold")
-
+  show figure: set block(breakable: true)
 
   doc
 }

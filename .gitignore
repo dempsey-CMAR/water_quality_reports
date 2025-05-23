@@ -3,6 +3,7 @@
 .RData
 .Ruserdata
 
+*.pdf
 *_Report.docx
 *report_elements/
 archive/
