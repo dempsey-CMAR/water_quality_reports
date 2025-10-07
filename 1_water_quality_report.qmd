@@ -11,7 +11,7 @@ bibliography: format/refs.bib
 citeproc: true
 csl: format/apa.csl
 params: 
-  county: "Lunenburg"
+  county: county
 editor_options: 
   chunk_output_type: console
 ---
@@ -155,7 +155,7 @@ if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
 
 The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through the Coastal Monitoring Program. The Nova Scotia Department of Fisheries and Aquaculture started this program in 2015 to inform aquaculture site selection and management. CMAR assumed responsibility for the program in 2019 and has since expanded its scope and mandate. For more information on CMAR and the Coastal Monitoring Program, visit the [CMAR website](https://cmar.ca/). 
 
-This document presents deployment details and summary figures of Water Quality data collected in **`r county` County** (Figure `r k` and Figure `r k+1`). The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=coastal+monitoring+program&sortBy=relevance&limitTo=datasets&tags=water+quality) and from the ERDAPP server through the [Canadian Integrated Ocean Observing System](https://catalogue.cioosatlantic.ca/dataset?q=cmar). 
+This document presents deployment details and summary figures of Water Quality data collected in **`r county` County** (Figure `r k` and Figure `r k+1`). The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=coastal+monitoring+program&sortBy=relevance&limitTo=datasets&tags=water+quality) and from the ERDDAP server through the [Canadian Integrated Ocean Observing System](https://catalogue.cioosatlantic.ca/dataset?q=cmar). 
 
 This document should be considered as a guide only, since data collection and retrieval are ongoing. The information may be revised pending ongoing data collection and analyses. 
 
@@ -166,6 +166,7 @@ This document should be considered as a guide only, since data collection and re
 #| error: false
 #| fig.width: 8
 #| fig.height: 3.75
+#| dpi: 400
 
 # NS county boundaries
 ns <- read_sf(here("data/merged_counties2/Merged_Counties2.shp")) %>% 
@@ -219,6 +220,7 @@ k = k + 1
 #| error: false
 #| fig.width: 8
 #| fig.height: 3.75
+#| dpi: 400
 
 if(county == "Guysborough") text_size <- 3
 
@@ -411,14 +413,14 @@ for(i in seq_along(waterbodies)){
     dat_j <- dat_j %>% select(-contains("flag"))
     
     # y-limts for DO
-    if(station_j %in% keep_sus_do){
-      ylims_do = FALSE     # default ggplot ylimits
-    } else ylims_do = TRUE # standard ylimits
+    # if(station_j %in% keep_sus_do){
+    #   ylims_do = FALSE     # default ggplot ylimits
+    # } else ylims_do = TRUE # standard ylimits
     
-    # y-limts for SAL
-    if(station_j %in% keep_sus_sal){
-      ylims_sal = FALSE     # default ggplot ylimits
-    } else ylims_sal = TRUE # standard ylimits
+    # # y-limts for SAL
+    # if(station_j %in% keep_sus_sal){
+    #   ylims_sal = FALSE     # default ggplot ylimits
+    # } else ylims_sal = TRUE # standard ylimits
     
     # height of figure j
     h <- calc_fig_height(dat_j, h1 = 2.4)
@@ -426,8 +428,8 @@ for(i in seq_along(waterbodies)){
     # figure
     p <- ss_plot_variables(
       dat_j,
-      standard_do_ylims = ylims_do,
-      standard_sal_ylims = ylims_sal,
+      standard_do_ylims = FALSE,
+      standard_sal_ylims = FALSE,
       yaxis_newline = FALSE
     )
     
@@ -443,7 +445,7 @@ for(i in seq_along(waterbodies)){
     print(glue("\n**Table {i_table}:** {table_caption} {station_j}."))
     flextable_to_rmd(table_j)
     
-    subchunkify(p, fig_height = h, fig_width = 8.5)
+    subchunkify(p, fig_height = h, fig_width = 8.5, dpi = 300)
     
     # figure caption
     fig_caption_j <- paste0("**Figure ", k, ":** ", station_j, fig_caption)

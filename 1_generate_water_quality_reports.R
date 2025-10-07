@@ -17,14 +17,23 @@ doc_history <- read_excel(
   sheet = "Tracking"
 )
 
-report <- here("1_water_quality_report.Rmd")
-
-
 # SECTION 1: SET UP ---------------------------------------------
 
-county <- "Lunenburg"
+county <- "Annapolis"
 
 # SECTION 2: GENERATE REPORTS --------------------------------------------------------
+
+report <- here("1_water_quality_report.qmd")
+
+quarto::quarto_render(
+  input = report,
+  output_file = paste0(county, "_Water_Quality_Report.pdf"),
+  execute_params = list(county = county)
+)
+
+
+
+# rmarkdown template ------------------------------------------------------
 
 sapply(county, function(x) {
 
@@ -34,7 +43,6 @@ sapply(county, function(x) {
     params = list(county = x, doc.hist = filter(doc_history, County == x)))
 
 })
-
 
 
 
