@@ -160,6 +160,9 @@ if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
 \newpage
 # Introduction
 
+
+**Add a note about VR2 data & make sure it is clear that variable DO has been removed**
+
 The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through the Coastal Monitoring Program. The Nova Scotia Department of Fisheries and Aquaculture started this program in 2015 to inform aquaculture site selection and management. CMAR assumed responsibility for the program in 2019 and has since expanded its scope and mandate. For more information on CMAR and the Coastal Monitoring Program, visit the [CMAR website](https://cmar.ca/). 
 
 This document presents deployment details and summary figures of Water Quality data collected in **`r county` County** (Figure `r k` and Figure `r k+1`). The data are available for download from the Nova Scotia [Open Data Portal](https://data.novascotia.ca/browse?q=coastal+monitoring+program&sortBy=relevance&limitTo=datasets&tags=water+quality) and from the ERDDAP server through the [Canadian Integrated Ocean Observing System](https://catalogue.cioosatlantic.ca/dataset?q=cmar). 
@@ -378,7 +381,12 @@ for(i in seq_along(waterbodies)){
   
   cat('\n')
   
-  #waterbody table
+  i_table <- i + 1
+  
+  print(glue("\n**Table {i_table}:** {table_caption} {waterbody_i}."))
+  
+  
+  #waterbody table -could put this into a function
   table_i <- ss_write_report_table(
     dat_i, keep_waterbody = FALSE, var_sep = " \\ "
   ) %>%
@@ -388,10 +396,7 @@ for(i in seq_along(waterbodies)){
     ) %>% 
     t()
   
-  i_table <- i + 1
-  
-  print(glue("\n**Table {i_table}:** {table_caption} {waterbody_i}."))
-  
+
   cat(
     "```{=typst}\n #table(columns: (2.4cm, 2cm, 2cm, 2cm, 2cm, 2.4cm, 3.9cm), 
     align: center + horizon,
@@ -500,7 +505,7 @@ hist <- data.frame(
 
 cat(
   "```{=typst}\n #table(columns: (2.4cm, 2.4cm, 12cm), 
-    align: (center, center, left),
+    align: (center + horizon, center + horizon, left + horizon),
     table.header[Version][Date][Amendments], ", hist, ")\n```"
 )
 
