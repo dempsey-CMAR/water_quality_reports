@@ -12,6 +12,9 @@ citeproc: true
 csl: format/apa.csl
 params: 
   county: county
+  doc_version: doc_version
+  doc_date: doc_date
+  doc_notes: doc_notes
 editor_options: 
   chunk_output_type: console
 ---
@@ -46,8 +49,10 @@ source(here("functions/subchunkify.R"))
 source(here("functions/import_map_params.R"))
 source(here("functions/report_helper_foos.R"))
 source(here("functions/report_params.R"))
+source(here("functions/report_filter_flags.R"))
 
 county <- params$county
+version <- params$doc_version
 ```
 
 ```{=typst} 
@@ -76,7 +81,7 @@ county <- params$county
   
     #table(columns: (55pt, 4.3cm, 4.3cm, 4.3cm, 7cm), align: left,
       table.header[ ][Prepared By][Date][Version][Contact],
-      [], [Danielle Dempsey], [`r format(Sys.Date(), "%B %Y")`], [V1], [P: 1-902-442-4660],
+      [], [Danielle Dempsey], [`r format(Sys.Date(), "%B %Y")`], [`r version[length(version)]`], [P: 1-902-442-4660],
       [], [Nicole Torrie], [], [], [E: info\@cmar.ca],
       [], [Rachel Woodside], [], [], [W: www.cmar.ca],
       [], [Kiersten Watson]
@@ -101,6 +106,7 @@ county <- params$county
 #set par(leading: 0.75em)
 ```
 
+
 ```{r}
 #| label: import-data
 
@@ -120,8 +126,9 @@ if(county == "Antigonish") {
 
 dat <- dat_raw %>%
   qc_pivot_longer() %>%
-  qc_filter_summary_flags(keep_salinity_psu = keep_salinity) %>%
-  filter(qc_flag_value != 2) %>%
+  #qc_filter_summary_flags(keep_salinity_psu = keep_salinity) %>%
+   # filter(qc_flag_value != 2) %>%
+  report_filter_flags(keep_salinity_psu = keep_salinity) %>% 
   qc_pivot_wider() %>%
   select(
     waterbody, station, lease, latitude, longitude,
@@ -152,6 +159,9 @@ if("dissolved_oxygen_uncorrected_mg_per_l" %in% colnames(dat)) {
 
 \newpage
 # Introduction
+
+
+**Add a note about VR2 data & make sure it is clear that variable DO has been removed**
 
 The Centre for Marine Applied Research (CMAR) measures [essential ocean variables](https://goosocean.org/what-we-do/framework/essential-ocean-variables/) around the coast of Nova Scotia through the Coastal Monitoring Program. The Nova Scotia Department of Fisheries and Aquaculture started this program in 2015 to inform aquaculture site selection and management. CMAR assumed responsibility for the program in 2019 and has since expanded its scope and mandate. For more information on CMAR and the Coastal Monitoring Program, visit the [CMAR website](https://cmar.ca/). 
 
@@ -371,18 +381,31 @@ for(i in seq_along(waterbodies)){
   
   cat('\n')
   
-  # waterbody table
-  # table_i <- ss_write_report_table(dat_i, keep_waterbody = FALSE) %>%
-  #   ss_format_report_table() %>%
-  #   width(width = c(2.4, 2, 2, 2, 2, 2.4, 3.8), unit = "cm") %>%
-  #   set_table_properties(layout = "autofit")
-  # 
-  # i_table <- i + 1
-  # 
-  # print(glue("\n**Table {i_table}:** {table_caption} {waterbody_i}."))
-  # flextable_to_rmd(table_i)
+  i_table <- i + 1
   
-  #cat('\n')
+  print(glue("\n**Table {i_table}:** {table_caption} {waterbody_i}."))
+  
+  
+  #waterbody table -could put this into a function
+  table_i <- ss_write_report_table(
+    dat_i, keep_waterbody = FALSE, var_sep = " \\ "
+  ) %>%
+    mutate(
+      across(.cols = c(1:7), .fns = ~as.character(.x)),
+      across(.cols = c(1:7), .fns = ~paste0("[", .x, "],"))
+    ) %>% 
+    t()
+  
+
+  cat(
+    "```{=typst}\n #table(columns: (2.4cm, 2cm, 2cm, 2cm, 2cm, 2.4cm, 3.9cm), 
+    align: center + horizon,
+    table.header[Station][Deployment Date][Retrieval Date][Latitude][Longitude][Configuration][Variables Measured], ",
+    table_i, 
+    ")\n```"
+  )
+  
+  cat("\n")
   
   # plot for each station
   for(j in seq_along(stations)){
@@ -405,22 +428,24 @@ for(i in seq_along(waterbodies)){
         qc_pivot_wider()
     }
     
+        #y-limts for DO
+    if(station_j %in% keep_sus_do){
+      ylims_do = FALSE     # default ggplot ylimits
+    } else ylims_do = TRUE # standard ylimits
+    
+    # y-limts for SAL
+    if(station_j %in% keep_sus_sal){
+      ylims_sal = FALSE     # default ggplot ylimits
+    } else ylims_sal = TRUE # standard ylimits
+
     # filter in Of Interest DO data at 60 m; filter out Suspect measured depth
     if(county == "Guysborough" & station_j == "Tickle Island 1") {
       dat_j <- filter_tickle_island_1(dat_j)
+      
+      ylims_do <- c(45, 160)
     }
     
     dat_j <- dat_j %>% select(-contains("flag"))
-    
-    # y-limts for DO
-    # if(station_j %in% keep_sus_do){
-    #   ylims_do = FALSE     # default ggplot ylimits
-    # } else ylims_do = TRUE # standard ylimits
-    
-    # # y-limts for SAL
-    # if(station_j %in% keep_sus_sal){
-    #   ylims_sal = FALSE     # default ggplot ylimits
-    # } else ylims_sal = TRUE # standard ylimits
     
     # height of figure j
     h <- calc_fig_height(dat_j, h1 = 2.4)
@@ -428,22 +453,12 @@ for(i in seq_along(waterbodies)){
     # figure
     p <- ss_plot_variables(
       dat_j,
-      standard_do_ylims = FALSE,
-      standard_sal_ylims = FALSE,
+      standard_do_ylims = ylims_do,
+      standard_sal_ylims = ylims_sal,
       yaxis_newline = FALSE
     )
     
-    table_j <- ss_write_report_table(dat_j, keep_waterbody = FALSE) %>%
-      filter(Station == station_j) %>%
-      ss_format_report_table() %>%
-      width(width = c(2.4, 2, 2, 2, 2, 2.4, 3.8), unit = "cm") %>%
-      set_table_properties(layout = "autofit")
-    
     cat('\n###', station_j, '\n')
-    
-    i_table <- i + 1
-    print(glue("\n**Table {i_table}:** {table_caption} {station_j}."))
-    flextable_to_rmd(table_j)
     
     subchunkify(p, fig_height = h, fig_width = 8.5, dpi = 300)
     
@@ -451,7 +466,7 @@ for(i in seq_along(waterbodies)){
     fig_caption_j <- paste0("**Figure ", k, ":** ", station_j, fig_caption)
     
     if(station_j %in% c(keep_sus_do)) {
-      fig_caption_j <-glue_do_fig_caption(fig_caption_j, station_j)
+      fig_caption_j <- glue_do_fig_caption(fig_caption_j, station_j)
     }
     
     if(station_j %in% c(keep_sus_sal)) {
@@ -466,4 +481,41 @@ for(i in seq_along(waterbodies)){
 ```
 
 \newpage
+#	Data Acknowledgement 
+
+CMAR aims to prioritize data collection and processing efforts that best serve coastal interest holders. If you use this Coastal Monitoring Program Water Quality data in a project or for decision making, please complete our [anonymous questionnaire](https://docs.google.com/forms/d/1RmHN1vDaM0dXqKFKy8V-traIoubdw1pqMDKVtPmWDHc/edit) with your feedback. Please cite the report and/or datasets used.
+
+# Document History
+
+**Table `r i_table +1`**: Document history.
+```{r}
+#| results: asis
+
+hist <- data.frame(
+  Version = params$doc_version,
+  Date = params$doc_date,
+  Amendments = params$doc_notes
+) %>% 
+  mutate(
+    Date = format(Date),
+    across(.cols = c(1:3), .fns = ~as.character(.x)),
+    across(.cols = c(1:3), .fns = ~paste0("[", .x, "],"))
+  ) %>% 
+  t()
+
+cat(
+  "```{=typst}\n #table(columns: (2.4cm, 2.4cm, 12cm), 
+    align: (center + horizon, center + horizon, left + horizon),
+    table.header[Version][Date][Amendments], ", hist, ")\n```"
+)
+
+cat("\n")
+```
+<br>
+
+```{=typst}
+#set align(left)
+```
+
+
 # References
