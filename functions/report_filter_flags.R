@@ -38,7 +38,7 @@
 report_filter_flags <- function(
     dat,
 
-    keep_dissolved_oxygen_percent_saturation = c(1, NA),
+   # keep_dissolved_oxygen_percent_saturation = c(1, NA),
     keep_dissolved_oxygen_uncorrected_mg_per_l = c(1, NA),
     keep_salinity_psu = c(1, NA),
     keep_sensor_depth_measured_m = c(1, 3, NA),
@@ -49,24 +49,20 @@ report_filter_flags <- function(
 
     ) {
 
-  if(is.null(keep_sus_do_stations)) {
-    keep_sus_do_stations <- c(
-      "0814x E",
-      "0814x W",
-      "Aberdeen",
-      "Deep Basin",
-      "Hourglass Lake",
-      "Piper Lake",
-      "Sissiboo",
-      "Tickle Island 1" # 60 m DO only
-    )
-  }
+  # if(is.null(keep_sus_do_stations)) {
+  #   keep_sus_do_stations <- c(
+  #     "0814x E",
+  #     "0814x W",
+  #     "Aberdeen",
+  #     "Deep Basin",
+  #     "Tickle Island 1" # 60 m DO only
+  #   )
+  # }
 
   dat %>%
     filter(
-      (variable == "dissolved_oxygen_percent_saturation" &
-         station %in% keep_sus_do_stations &
-         qc_flag_value %in% keep_sus_do) |
+      # (variable == "dissolved_oxygen_percent_saturation" &
+      #    station %in% keep_sus_do_stations & qc_flag_value %in% keep_sus_do) |
 
         (variable == "dissolved_oxygen_percent_saturation" &
            grossrange_flag_value %in% c(1, 3, NA) &
