@@ -69,12 +69,12 @@ import_map_params <- function(county, crs = 4326){
   }
 
   if(county == "Victoria"){
-    dummy_points <- data.frame(Long = c(-62, -59), Lat = c(45.7, 47)) %>%
+    dummy_points <- data.frame(Long = c(-62, -58), Lat = c(45.6, 47.1)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
   if(county == "Yarmouth"){
-    dummy_points <- data.frame(Long = c(-66.5, -65.4), Lat = c(43.6, 44)) %>%
+    dummy_points <- data.frame(Long = c(-67, -65.4), Lat = c(43.6, 44)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
