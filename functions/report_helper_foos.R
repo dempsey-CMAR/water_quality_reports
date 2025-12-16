@@ -3,31 +3,71 @@
 # functions for Water Quality Reports
 # moved to here to decrease length of report script
 
+# sal = 30.6
+#
+# dat <- data.frame(
+#   salinity_psu = c(1, 2, 3, NA, NA),
+#   temperature_degree_c = c(5, 10, 15, 20, 25),
+#   dissolved_oxygen_uncorrected_mg_per_l = c(9, 10, NA, 14, NA)
+# )
+#
+#
+# dat <- data.frame(
+#   temperature_degree_c = c(5, 10, 15, 20, 25),
+#   dissolved_oxygen_uncorrected_mg_per_l = c(9, 10, NA, 14, NA)
+# )
+
 
 # apply salinity correction factor to DO data -----------------------------
 
 correct_do_data <- function(dat, sal = 30.6) {
 
-  dat_other <- dat %>%
-    filter(is.na(dissolved_oxygen_uncorrected_mg_per_l))
+  if(!("salinity_psu" %in% colnames(dat))) {
+    dat$salinity_psu <- NA
 
-  dat_do <- dat %>%
-    filter(!is.na(dissolved_oxygen_uncorrected_mg_per_l))
+    rm_sal <- TRUE
+  } else rm_sal <- FALSE
 
-  if("salinity_psu" %in% colnames(dat_do)) {
+  dat <- dat %>%
+    mutate(
+      sal_na = if_else(is.na(salinity_psu), TRUE, FALSE),
+      salinity_psu = if_else(sal_na == TRUE, sal, salinity_psu),
+    ) %>%
+    do_salinity_correction() %>%
+    mutate(
+      dissolved_oxygen_mg_per_l = dissolved_oxygen_uncorrected_mg_per_l * F_s,
+      salinity_psu = if_else(sal_na == TRUE, NA, salinity_psu)
+    ) %>%
+    select(-c(sal_na, dissolved_oxygen_uncorrected_mg_per_l, F_s))
 
-    if(is.na(unique((dat_do$salinity_psu)))) {
-      dat_do <- dat_do %>% select(-salinity_psu)
-    } else message("use salinity column in dat for Fs")
+  if(rm_sal == TRUE) {
+    dat <- dat %>% select(-salinity_psu)
   }
 
-  dat_do %>%
-    do_salinity_correction(sal = sal) %>%
-    mutate(
-      dissolved_oxygen_mg_per_l = dissolved_oxygen_uncorrected_mg_per_l * F_s
-    ) %>%
-    select(-c(dissolved_oxygen_uncorrected_mg_per_l, salinity_psu, F_s)) %>%
-    bind_rows(dat_other)
+  dat
+
+
+# this dropped salinity whwn it shouldn't have and other problems
+  # dat_other <- dat %>%
+  #   filter(is.na(dissolved_oxygen_uncorrected_mg_per_l))
+  #
+  # dat_do <- dat %>%
+  #   filter(!is.na(dissolved_oxygen_uncorrected_mg_per_l))
+  #
+  # if("salinity_psu" %in% colnames(dat_do)) {
+  #
+  #   if(is.na(unique((dat_do$salinity_psu)))) {
+  #     dat_do <- dat_do %>% select(-salinity_psu)
+  #   } else message("use salinity column in dat for Fs")
+  # }
+  #
+  # dat_do %>%
+  #   do_salinity_correction(sal = sal) %>%
+  #   mutate(
+  #     dissolved_oxygen_mg_per_l = dissolved_oxygen_uncorrected_mg_per_l * F_s
+  #   ) %>%
+  #   bind_rows(dat_other) %>%
+  #   select(-c(dissolved_oxygen_uncorrected_mg_per_l, F_s))
 }
 
 
@@ -72,7 +112,7 @@ calc_fig_height <- function(dat, h1) {
   if(n_vars == 2) h = 2 * h1
   if(n_vars == 3) h = 3 * h1
   if(n_vars == 4) h = 4 * h1
-  if(n_vars > 4) h = 5 * h1
+  if(n_vars > 4) h = 10.9
 
   # if(isTRUE(fit_page)) {
   #   if(n_vars == 4) h = 8
