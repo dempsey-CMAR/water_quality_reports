@@ -35,7 +35,8 @@
     lang: lang,
     region: region,
     font: font,
-    size: fontsize
+    size: fontsize,
+    hyphenate: false
   )
   set heading(numbering: sectionnumbering)
   show heading: set text(heading-color)
