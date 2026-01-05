@@ -32,7 +32,6 @@ import_map_params <- function(county, crs = 4326){
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
   }
 
-  # these will need to be updated to show Careys Point
   if(county == "Halifax"){
     dummy_points <- data.frame(Long = c(-64.1, -62.2), Lat = c(44.1, 45.15)) %>%
       st_as_sf(coords = c("Long", "Lat"), crs = crs)
