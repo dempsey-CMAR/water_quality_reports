@@ -12,7 +12,7 @@ library(readxl)
 
 # SECTION 1: SET UP ---------------------------------------------
 
-county <- "Annapolis"
+county <- "Guysborough"
 
 hist <- read_excel(
   "R:/tracking_sheets/water_quality_report_tracker.xlsx", sheet = "Tracking"
@@ -34,17 +34,6 @@ quarto::quarto_render(
   )
 )
 
-
--# rmarkdown template ------------------------------------------------------
-
-sapply(county, function(x) {
-
-  rmarkdown::render(
-    input = report,
-    output_file = paste0(x, "_Water_Quality_Report.docx"),
-    params = list(county = x, doc.hist = filter(doc_history, County == x)))
-
-})
 
 
 

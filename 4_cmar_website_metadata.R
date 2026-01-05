@@ -20,7 +20,7 @@ links <- read_csv(
 # import station locations --------------------
 
 st_locations <- read_csv(
-  here("data","2024-12-06_station_locations.csv"), show_col_types = FALSE
+  here("data","2025-12-15_station_locations.csv"), show_col_types = FALSE
 )
 
 st_locations <- st_locations %>%
