@@ -1,27 +1,22 @@
-#' Filter data to keep observations of acceptable quality
-#'
-#' @param dat Data frame with summary quality control flags in long format
-#'   (e.g., output of `qc_pivot_longer()`).
-#'
-#' @param keep_sensor_depth_measured_m  Vector of acceptable flags for variable
-#'   sensor_depth_measured_m. Default is c(1, 3, NA).
-#'
-#' @param keep_salinity_psu Vector of acceptable flags for variable
-#'   salinity_psu. Default is c(1, NA).
-#'
-#' @param keep_temperature_degree_c Vector of acceptable flags for variable
-#'   temperature_degree_c. Default is c(1, 3, NA).
-#'
-#' @importFrom dplyr %>% filter
-#'
-#' @export
+# Filter data to keep observations of acceptable quality
+
+## dissolved oxygen (percent saturation and mg/L)
+### keep flags of 1 and 3 for all tests EXCEPT rolling sd
+### for rolling sd, only keep flags of 1
+
+## for salinity
+### only keep flags of 1 for now. This may be changed for future releases
+### flags 1 and 3 are kept for several stations (within the body of the report)
+
+## all other variables
+### keep flags of 1 and 3
 
 report_filter_flags <- function(
     dat,
 
     keep_salinity_psu = c(1, NA),
     keep_sensor_depth_measured_m = c(1, 3, NA),
-    keep_temperature_degree_c = c(1, 3, NA),
+    keep_temperature_degree_c = c(1, 3, NA)
 ) {
 
   dat <- dat %>%

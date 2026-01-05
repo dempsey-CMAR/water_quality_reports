@@ -30,9 +30,11 @@ custom_sal_ylims <- c(
   "0814x E",
   "0814x W",
   "Monks Head",
-  "Pictou Landing"
+  "Pictou Landing",
+  "1443"
 )
 
-# add that kept suspect DO in caption
-keep_sus_sal <- c("Monks Head", "Pictou Landing")
+# stations where flags of 3 should be kept (typically low salinity areas where
+# sal gets flagged by grossrange user threshold)
+keep_sus_sal <- c("Monks Head", "Pictou Landing", "1443")
 

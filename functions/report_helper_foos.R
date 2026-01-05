@@ -17,7 +17,6 @@
 #   dissolved_oxygen_uncorrected_mg_per_l = c(9, 10, NA, 14, NA)
 # )
 
-
 # apply salinity correction factor to DO data -----------------------------
 
 correct_do_data <- function(dat, sal = 30.6) {
@@ -63,26 +62,10 @@ calc_fig_height <- function(dat, h1) {
   if(n_vars == 4) h = 4 * h1
   if(n_vars > 4) h = 10.9
 
-  # if(isTRUE(fit_page)) {
-  #   if(n_vars == 4) h = 8
-  # }
-
   h
 }
 
 # figure caption ----------------------------------------------------------
-
-# glue_do_fig_caption <- function(fig_cap, station) {
-#
-#   if(station == "Tickle Island 1") {
-#     fig_cap <- glue("{fig_cap} Dissolved oxygen observations recorded at 60 m that were flagged \"Suspect/Of Interest\" were considered \"Of Interest\" for this deployment and included in the figure. Measured depth observations were considered \"Suspect\" and are not included.")
-#   }  else{
-#     fig_cap <- glue("{fig_cap} Dissolved oxygen observations flagged \"Suspect/Of Interest\" were considered \"Of Interest\" for this deployment and included in the figure.")
-#   }
-#
-#   fig_cap
-# }
-
 
 # figure caption ----------------------------------------------------------
 
